@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Habilitar corepack (para usar pnpm)
+RUN corepack enable
+
+# Copiar archivos de dependencias
+COPY package.json pnpm-lock.yaml ./
+
+# Instalar TODAS las dependencias (incluye dev)
+RUN pnpm install --frozen-lockfile
+
+# Copiar el resto del proyecto
+COPY . .
+
+# Puerto de NestJS
+EXPOSE 1141
+
+# Modo desarrollo con hot reload
+CMD ["pnpm", "run", "start:dev"]
