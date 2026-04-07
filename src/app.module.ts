@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import Joi from 'joi';
-import { AdresModule } from './core/adres/adres.module';
+import { AdresModule } from './core/providers/adres/adres.module';
 import { appConfig } from './config/env.config';
 import { TypedConfigService } from './config/service/typed-config.service';
 import { HttpModule } from './common/http';
+import { OrchestratorModule } from './core/orchestrator/orchestrator.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { HttpModule } from './common/http';
     }),
     HttpModule,
     AdresModule,
+    OrchestratorModule,
   ],
   providers: [TypedConfigService],
   exports: [TypedConfigService],

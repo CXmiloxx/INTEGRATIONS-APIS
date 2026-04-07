@@ -6,14 +6,17 @@ import {
   DatosAfiliacion,
   InformacionBasica,
   ResultadoConsultaAfiliado,
+  TipoDocumento,
 } from 'src/types/afiliado.types';
 import * as cheerio from 'cheerio';
 import { AxiosError } from 'axios';
 import { TypedConfigService } from 'src/config';
 import { HttpClientService, getFormDataHeaders } from 'src/common/http';
+import { Provider } from 'src/common/interfaces/provider.interface';
+import { CitizenInfoDTO } from 'src/common/dto/citizen-info.dto';
 
 @Injectable()
-export class AdresService {
+export class AdresService implements Provider {
   private readonly logger = new Logger(AdresService.name);
   private readonly urls: { adresApi: string; urlApi: string };
   private readonly radScriptManager: string;
@@ -22,6 +25,10 @@ export class AdresService {
   private readonly viewStateGenerator: string;
   private readonly eventValidation: string;
   private readonly httpClient: AxiosInstance;
+
+  // Propiedades requeridas por la interfaz Provider
+  readonly name: string = 'ADRES';
+  readonly timeout: number = 30000;
 
   constructor(
     private readonly config: TypedConfigService,
@@ -378,6 +385,38 @@ export class AdresService {
       throw new BadRequestException(
         `Error al procesar la respuesta del servicio ADRES: ${errorMessage}`,
       );
+    }
+  }
+
+  // ============================================================
+  // IMPLEMENTACIÓN DE INTERFAZ PROVIDER
+  // ============================================================
+
+  async getData(numDoc: number, tipoDoc: TipoDocumento = TipoDocumento.CC) {
+    try {
+      return await this.consultarAfiliado({ tipoDoc, numDoc });
+    } catch (error) {
+      this.logger.error(`Error en getData: ${error}`);
+      throw error;
+    }
+  }
+
+  normalize(data: ResultadoConsultaAfiliado): Partial<CitizenInfoDTO> {
+    try {
+      if (!data || !data.informacionBasica) {
+        throw new BadRequestException('Datos inválidos para normalizar');
+      }
+
+      const resultado: ResultadoConsultaAfiliado = data;
+      return {
+        adres: {
+          informacionBasica: resultado.informacionBasica,
+          datosAfiliacion: resultado.datosAfiliacion,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Error en normalize: ${error}`);
+      throw error;
     }
   }
 }
