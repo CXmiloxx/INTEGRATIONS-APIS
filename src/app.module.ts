@@ -20,6 +20,7 @@ import { OrchestratorModule } from './core/orchestrator/orchestrator.module';
           .optional()
           .default('development'),
         ADRES_API_URL: Joi.string().required(),
+        ASO_PAGOS_API_URL: Joi.string().required(),
         ALLOWED_ORIGINS: Joi.string().optional(),
         RAD_SCRIPT_MANAGER: Joi.string().required(),
         EVENT_TARGET: Joi.string().required(),
