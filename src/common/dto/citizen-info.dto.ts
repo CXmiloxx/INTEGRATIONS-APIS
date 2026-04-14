@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PdfParserResponseDTO } from 'src/core/providers/aso-pagos/dto/aso-pagos-response.dto';
 import { InformacionBasica, DatosAfiliacion } from 'src/types/afiliado.types';
 
 export class CitizenInfoDTO {
@@ -32,19 +33,14 @@ export class CitizenInfoDTO {
       },
     ],
   })
-  salud?: {
-    datosAfiliacion?: Partial<DatosAfiliacion>[];
-    eps?: string;
-    estado?: string;
-    regimen?: string;
+  asoPagos?: {
+    informacionAportante?: PdfParserResponseDTO;
   };
 
   @ApiProperty({
     description: 'Metadata adicional',
     required: false,
   })
-  metadata?: Record<string, any>;
-
   @ApiProperty({
     description: 'Timestamp de procesamiento',
   })
