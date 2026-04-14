@@ -21,7 +21,7 @@ services:
     environment:
       NODE_ENV: production
 
-    command: node dist/src/main.js
+    command: node dist/main.js
 
 networks:
   integrations_apis_network:
