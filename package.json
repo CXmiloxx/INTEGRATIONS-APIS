@@ -27,13 +27,19 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.6",
     "axios": "^1.13.6",
+    "axios-cookiejar-support": "^6.0.5",
     "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "dotenv": "^17.3.1",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.6.205",
     "qs": "^6.15.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0",
+    "tough-cookie": "^6.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
