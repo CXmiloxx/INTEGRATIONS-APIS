@@ -15,6 +15,7 @@ export const appConfig = registerAs<AppConfigType>('app', () => {
     nodeEnv,
     urls: {
       adresApi: process.env.ADRES_API_URL ?? '',
+      asoPagosApi: process.env.ASO_PAGOS_API_URL ?? '',
       urlApi: process.env.URL_API ?? '',
     },
     cors: {

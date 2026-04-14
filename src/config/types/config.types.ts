@@ -3,6 +3,7 @@ export interface AppConfigType {
   nodeEnv: 'development' | 'production' | 'test';
   urls: {
     adresApi: string;
+    asoPagosApi: string;
     urlApi: string;
   };
   cors: {

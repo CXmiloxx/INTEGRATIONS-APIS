@@ -3,6 +3,7 @@ declare namespace NodeJS {
     PORT?: string;
     NODE_ENV?: 'development' | 'production' | 'test';
     ADRES_API_URL: string;
+    ASO_PAGOS_API_URL: string;
     URL_API: string;
     ALLOWED_ORIGINS?: string;
     RAD_SCRIPT_MANAGER: string;
