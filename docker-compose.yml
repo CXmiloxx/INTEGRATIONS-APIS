@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  integrations_apis:
+    container_name: integrations_apis
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: integrations_apis:latest
+
+    ports:
+      - "${PORT}:3145"
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    networks:
+      - integrations_apis_network
+
+    environment:
+      NODE_ENV: production
+
+    command: node dist/src/main.js
+
+networks:
+  integrations_apis_network:
+    driver: bridge
