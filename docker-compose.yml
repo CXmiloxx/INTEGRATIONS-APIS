@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   integrations_apis:
     container_name: integrations_apis
