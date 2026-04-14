@@ -44,6 +44,9 @@ importers:
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
+      joi:
+        specifier: ^18.0.2
+        version: 18.0.2
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
@@ -120,9 +123,6 @@ importers:
       jest:
         specifier: ^30.0.0
         version: 30.2.0(@types/node@22.19.15)(ts-node@10.9.2(@types/node@22.19.15)(typescript@5.9.3))
-      joi:
-        specifier: ^18.0.2
-        version: 18.0.2
       prettier:
         specifier: ^3.4.2
         version: 3.8.1
