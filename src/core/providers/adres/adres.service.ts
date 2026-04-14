@@ -11,9 +11,10 @@ import {
 import * as cheerio from 'cheerio';
 import { AxiosError } from 'axios';
 import { TypedConfigService } from 'src/config';
-import { HttpClientService, getFormDataHeaders } from 'src/common/http';
+import { HttpClientService } from 'src/common/http';
 import { Provider } from 'src/common/interfaces/provider.interface';
 import { CitizenInfoDTO } from 'src/common/dto/citizen-info.dto';
+import { AdresHttpClientAdapter } from './adapters/adres-http-client.adapter';
 
 @Injectable()
 export class AdresService implements Provider {
@@ -44,8 +45,7 @@ export class AdresService implements Provider {
 
     // ✅ Obtener instancia de HTTP centralizada
     this.httpClient = this.httpClientService.getClient(
-      'adres',
-      this.urls.adresApi,
+      new AdresHttpClientAdapter(this.urls.adresApi),
     );
   }
 
@@ -68,9 +68,7 @@ export class AdresService implements Provider {
       qs.stringify(formData),
       {
         headers: {
-          ...getFormDataHeaders(),
-          Origin: 'https://www.adres.gov.co',
-          Referer: 'https://www.adres.gov.co/consulte-su-eps',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
       },
     );
@@ -95,9 +93,10 @@ export class AdresService implements Provider {
     this.logger.log('🔗 URL de consulta del afiliado');
 
     // Extraer cookies de sesión
-    const cookies = this.extractCookies(
-      postResponse.headers as Record<string, string>,
+    const cookies = this.httpClientService.extractCookiesFromHeaders(
+      postResponse.headers as Record<string, unknown>,
     );
+    this.httpClientService.setCookies('adres', cookies);
     this.logger.log('🍪 Cookies de sesión extraidas');
 
     // Consulta del afiliado con cookies
@@ -169,17 +168,6 @@ export class AdresService implements Provider {
     // Fallback: construir la URL de consulta del afiliado
     const baseUrl = this.urls.adresApi;
     return `${baseUrl}/RespuestaConsulta.aspx?tokenId=${encodeURIComponent(tokenId)}`;
-  }
-
-  // Extraer cookies de la respuesta del servicio ADRES
-  private extractCookies(headers: Record<string, string>) {
-    const setCookie = headers['set-cookie'];
-    if (!setCookie || !Array.isArray(setCookie)) return '';
-
-    return setCookie
-      .map((cookie: string) => cookie.split(';')[0].trim())
-      .filter(Boolean)
-      .join('; ');
   }
 
   // Consulta del afiliado con cookies
@@ -394,7 +382,9 @@ export class AdresService implements Provider {
 
   async getData(numDoc: number, tipoDoc: TipoDocumento = TipoDocumento.CC) {
     try {
-      return await this.consultarAfiliado({ tipoDoc, numDoc });
+      const result = await this.consultarAfiliado({ tipoDoc, numDoc });
+      // Retornar solo los datos, no la estructura envolvente
+      return result.data;
     } catch (error) {
       this.logger.error(`Error en getData: ${error}`);
       throw error;
@@ -404,6 +394,9 @@ export class AdresService implements Provider {
   normalize(data: ResultadoConsultaAfiliado): Partial<CitizenInfoDTO> {
     try {
       if (!data || !data.informacionBasica) {
+        this.logger.error(
+          `Datos inválidos para normalizar: ${JSON.stringify(data)}`,
+        );
         throw new BadRequestException('Datos inválidos para normalizar');
       }
 
