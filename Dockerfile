@@ -1,5 +1,5 @@
 # ---------- Base ----------
-  FROM node:20-alpine AS base
+  FROM node:20-slim AS base
 
   WORKDIR /app
 
@@ -20,7 +20,7 @@
   RUN pnpm build
 
   # ---------- Production ----------
-  FROM node:20-alpine AS production
+  FROM node:20-slim AS production
 
   WORKDIR /app
 
@@ -34,10 +34,6 @@
 
   COPY --from=builder /app/dist ./dist
 
-  # Seguridad
-  RUN addgroup -S nodejs && adduser -S nestjs -G nodejs
-
-  USER nestjs
 
   EXPOSE 3145
 
