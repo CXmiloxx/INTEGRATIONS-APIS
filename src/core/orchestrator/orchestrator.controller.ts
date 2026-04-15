@@ -7,7 +7,7 @@ import {
   ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 import { OrchestratorService } from './orchestrator.service';
-import { CitizenInfoDTO } from 'src/common/dto/citizen-info.dto';
+import { CitizenResponseDTO } from 'src/common/dto/citizen-response.dto';
 import { BuscarAfiliado } from '../providers/adres/dto/buscar-afiliado.dto';
 
 @ApiTags('Ciudadano - Información Consolidada')
@@ -21,62 +21,71 @@ export class OrchestratorController {
   @ApiOperation({
     summary: 'Obtener información consolidada de un ciudadano',
     description:
-      'Consulta información consolidada del ciudadano desde múltiples proveedores (actualmente ADRES)',
+      'Consulta información consolidada del ciudadano desde múltiples proveedores (ADRES y ASOPAGOS)',
   })
   @ApiParam({
     name: 'cedula',
     description: 'Número de cédula del ciudadano',
-    example: '1234567890',
+    example: '1032249209',
     type: 'string',
   })
   @ApiResponse({
     status: 200,
-    description: 'Información del ciudadano obtenida exitosamente',
-    type: CitizenInfoDTO,
+    description: 'Información del ciudadano obtenida',
+    type: CitizenResponseDTO,
     schema: {
       example: {
-        informacionBasica: {
-          tipoIdentificacion: 'CC',
-          numeroIdentificacion: '1234567890',
-          nombres: 'Juan',
-          apellidos: 'Pérez',
-          fechaNacimiento: '1990-01-01',
-          departamento: 'Bogotá',
-          municipio: 'Bogotá D.C',
-        },
-        salud: {
-          eps: 'EPS Sanitas',
-          estado: 'ACTIVO',
-          regimen: 'CONTRIBUTIVO',
-          datosAfiliacion: [
+        meta: { timestamp: '2026-04-15T13:27:44.453Z' },
+        data: {
+          persona: {
+            tipoIdentificacion: 'CC',
+            numeroIdentificacion: '1032249209',
+            nombres: 'JUAN CAMILO',
+            apellidos: 'GUAPACHA LARGO',
+            fechaNacimiento: null,
+            ubicacion: {
+              departamento: 'RISARALDA',
+              municipio: 'QUINCHIA',
+            },
+          },
+          afiliaciones: [
             {
+              fuente: 'ADRES',
               estado: 'ACTIVO',
-              entidad: 'EPS Sanitas',
+              entidad: 'ASMET SALUD EPS',
               regimen: 'CONTRIBUTIVO',
-              fechaAfiliacionEfectiva: '2020-01-01',
-              tipoAfiliado: 'Trabajador Independiente',
+              fechaInicio: '2014-11-12',
+              fechaFin: null,
+              tipo: 'COTIZANTE',
             },
           ],
+          aportante: {
+            fuente: 'ASOPAGOS',
+            nit: '901837715',
+            empresa: 'FINOVA',
+            periodos: { pension: '2026-01', salud: '2026-02' },
+          },
         },
-        fechaProcesamiento: '2026-04-07T12:30:00Z',
+        providers: {
+          ADRES: { status: 'success' },
+          ASOPAGOS: { status: 'success' },
+        },
       },
     },
   })
   @ApiInternalServerErrorResponse({
-    description:
-      'Error al consultar los proveedores de información o procesar los datos',
+    description: 'Error inesperado al consultar los proveedores',
     schema: {
       example: {
         statusCode: 500,
-        message:
-          'No se pudo obtener información del ciudadano de los proveedores disponibles',
+        message: 'Error interno del servidor',
         error: 'Internal Server Error',
       },
     },
   })
   async obtenerInfoCiudadano(
     @Query() buscarAfiliadoDto: BuscarAfiliado,
-  ): Promise<CitizenInfoDTO> {
+  ): Promise<CitizenResponseDTO> {
     this.logger.log(`GET /citizen/${buscarAfiliadoDto.numDoc}`);
     return await this.orchestratorService.obtenerInfoCiudadano(
       buscarAfiliadoDto,

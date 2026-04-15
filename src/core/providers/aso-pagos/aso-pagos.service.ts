@@ -9,11 +9,12 @@ import { TipoDocumento } from 'src/types/afiliado.types';
 import { TypedConfigService } from 'src/config';
 import { HttpClientService } from 'src/common/http';
 import { Provider } from 'src/common/interfaces/provider.interface';
-import { CitizenInfoDTO } from 'src/common/dto/citizen-info.dto';
 import { AsoPagosHttpClientAdapter } from './adapters/aso-pagos-http-client.adapter';
+import { ProviderContribution } from 'src/common/dto/citizen-response.dto';
 import { FileStorageService } from 'src/common/services/file-storage.service';
 import { OcrService } from 'src/common/services/ocr.service';
 import { PdfParserService } from 'src/common/services/pdf-parser.service';
+import { UserNotFoundError } from 'src/common/errors';
 
 @Injectable()
 export class AsoPagosService implements Provider {
@@ -22,6 +23,7 @@ export class AsoPagosService implements Provider {
 
   // Propiedades requeridas por la interfaz Provider
   readonly name: string = 'asoPagos';
+  readonly responseKey: string = 'ASOPAGOS';
   readonly timeout: number = 30000;
 
   constructor(
@@ -109,9 +111,14 @@ export class AsoPagosService implements Provider {
           this.logger.error(
             `❌ Persona no existe en ASO-PAGOS. No reintentar.`,
           );
-          throw new BadRequestException(
+          throw new UserNotFoundError(
+            this.name,
             'El empleado seleccionado no existe o no se encuentra presente en una planilla paga. No hay certificados disponibles.',
           );
+        }
+
+        if (error instanceof UserNotFoundError) {
+          throw error;
         }
 
         // 2. Errores recuperables: CAPTCHA mal leído o HTML genérico
@@ -273,6 +280,10 @@ export class AsoPagosService implements Provider {
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`❌ Error al obtener PDF: ${errorMessage}`);
 
+      if (error instanceof UserNotFoundError) {
+        throw error;
+      }
+
       throw new BadRequestException(
         `Error al descargar certificado de Aso Pagos: ${errorMessage}`,
       );
@@ -359,7 +370,8 @@ export class AsoPagosService implements Provider {
         this.logger.error(
           '❌ PERSONA NO EXISTE: El empleado no se encuentra en las planillas pagas',
         );
-        throw new BadRequestException(
+        throw new UserNotFoundError(
+          this.name,
           'El empleado seleccionado no existe o no se encuentra presente en una planilla paga',
         );
       }
@@ -395,23 +407,30 @@ export class AsoPagosService implements Provider {
     }
   }
 
-  normalize(data: AsoPagosResponseDTO): Partial<CitizenInfoDTO> {
-    try {
-      if (!data || !data.informacionAportante) {
-        this.logger.error(
-          `Datos inválidos para normalizar: ${JSON.stringify(data)}`,
-        );
-        throw new BadRequestException('Datos inválidos para normalizar');
-      }
+  toContribution(data: unknown): ProviderContribution {
+    const response = data as AsoPagosResponseDTO | null;
+    const info = response?.informacionAportante;
+    if (!info) return {};
 
-      return {
-        asoPagos: {
-          informacionAportante: data.informacionAportante,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Error en normalize: ${error}`);
-      throw error;
-    }
+    const persona = {
+      numeroIdentificacion: info.cedula,
+      nombres: info.nombres,
+      apellidos: info.apellidos,
+      ubicacion: {},
+    };
+
+    const periodos =
+      info.periodoPension || info.periodoSalud
+        ? { pension: info.periodoPension, salud: info.periodoSalud }
+        : undefined;
+
+    const aportante = {
+      fuente: this.responseKey,
+      nit: info.nit,
+      empresa: info.empresa,
+      periodos,
+    };
+
+    return { persona, aportante };
   }
 }

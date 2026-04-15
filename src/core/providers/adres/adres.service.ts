@@ -13,8 +13,9 @@ import { AxiosError } from 'axios';
 import { TypedConfigService } from 'src/config';
 import { HttpClientService } from 'src/common/http';
 import { Provider } from 'src/common/interfaces/provider.interface';
-import { CitizenInfoDTO } from 'src/common/dto/citizen-info.dto';
 import { AdresHttpClientAdapter } from './adapters/adres-http-client.adapter';
+import { UserNotFoundError } from 'src/common/errors';
+import { ProviderContribution } from 'src/common/dto/citizen-response.dto';
 
 @Injectable()
 export class AdresService implements Provider {
@@ -29,6 +30,7 @@ export class AdresService implements Provider {
 
   // Propiedades requeridas por la interfaz Provider
   readonly name: string = 'ADRES';
+  readonly responseKey: string = 'ADRES';
   readonly timeout: number = 30000;
 
   constructor(
@@ -242,7 +244,7 @@ export class AdresService implements Provider {
         if (responseHtml.length > 0) {
           errorMessage += ' - ' + responseHtml.text().trim();
         }
-        throw new BadRequestException(errorMessage);
+        throw new UserNotFoundError(this.name, errorMessage);
       }
 
       if (basicTable.length > 0) {
@@ -370,6 +372,9 @@ export class AdresService implements Provider {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`❌ Error al parsear HTML: ${errorMessage}`);
+      if (error instanceof UserNotFoundError) {
+        throw error;
+      }
       throw new BadRequestException(
         `Error al procesar la respuesta del servicio ADRES: ${errorMessage}`,
       );
@@ -383,7 +388,6 @@ export class AdresService implements Provider {
   async getData(numDoc: number, tipoDoc: TipoDocumento = TipoDocumento.CC) {
     try {
       const result = await this.consultarAfiliado({ tipoDoc, numDoc });
-      // Retornar solo los datos, no la estructura envolvente
       return result.data;
     } catch (error) {
       this.logger.error(`Error en getData: ${error}`);
@@ -391,25 +395,35 @@ export class AdresService implements Provider {
     }
   }
 
-  normalize(data: ResultadoConsultaAfiliado): Partial<CitizenInfoDTO> {
-    try {
-      if (!data || !data.informacionBasica) {
-        this.logger.error(
-          `Datos inválidos para normalizar: ${JSON.stringify(data)}`,
-        );
-        throw new BadRequestException('Datos inválidos para normalizar');
-      }
+  toContribution(data: unknown): ProviderContribution {
+    const resultado = data as ResultadoConsultaAfiliado | null;
+    if (!resultado) return {};
 
-      const resultado: ResultadoConsultaAfiliado = data;
-      return {
-        adres: {
-          informacionBasica: resultado.informacionBasica,
-          datosAfiliacion: resultado.datosAfiliacion,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Error en normalize: ${error}`);
-      throw error;
-    }
+    const basica = resultado.informacionBasica;
+    const persona = basica
+      ? {
+          tipoIdentificacion: basica.tipoIdentificacion,
+          numeroIdentificacion: basica.numeroIdentificacion,
+          nombres: basica.nombres,
+          apellidos: basica.apellidos,
+          fechaNacimiento: basica.fechaNacimiento ?? null,
+          ubicacion: {
+            departamento: basica.departamento,
+            municipio: basica.municipio,
+          },
+        }
+      : undefined;
+
+    const afiliaciones = (resultado.datosAfiliacion ?? []).map((a) => ({
+      fuente: this.responseKey,
+      estado: a.estado,
+      entidad: a.entidad,
+      regimen: a.regimen,
+      fechaInicio: a.fechaAfiliacionEfectiva || null,
+      fechaFin: a.fechaFinalizacionAfiliacion || null,
+      tipo: a.tipoAfiliado,
+    }));
+
+    return { persona, afiliaciones };
   }
 }
