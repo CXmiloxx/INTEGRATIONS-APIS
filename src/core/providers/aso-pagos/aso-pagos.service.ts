@@ -97,13 +97,13 @@ export class AsoPagosService implements Provider {
 
         this.logger.warn(`⚠️ Intento #${intento} fallido: ${errorMessage}`);
 
-        //Detectar errores no recuperables
-        // 1. Persona no existe en la base de datos
+        // 1. Persona no existe (no recuperable) — solo cuando isPdfValid lo
+        // detectó explícitamente por keywords del HTML de error del servidor.
         const personaNoExiste =
-          errorMessage.includes('no existe') ||
-          errorMessage.includes('no se encuentra presente') ||
           errorMessage.includes('empleado seleccionado no existe') ||
-          errorMessage.includes('planilla paga');
+          errorMessage.includes(
+            'no se encuentra presente en una planilla paga',
+          );
 
         if (personaNoExiste) {
           this.logger.error(
@@ -114,28 +114,15 @@ export class AsoPagosService implements Provider {
           );
         }
 
-        // 2. Error genérico de página de error
-        const esErrorPaginaGenerico =
-          errorMessage.includes('página de error') ||
-          errorMessage.includes('retornó una página') ||
-          errorMessage.includes('no se encuentra presente en una planilla');
-
-        if (esErrorPaginaGenerico) {
-          this.logger.error(
-            `❌ Error de página. Probablemente la persona no existe.`,
-          );
-          throw new BadRequestException(
-            'El empleado seleccionado no existe o no se encuentra presente en una planilla paga. No hay certificados disponibles.',
-          );
-        }
-
-        // 3. Solo reintentar si es error recuperable (CAPTCHA / PDF inválido)
-        const esErrorCaptcha =
+        // 2. Errores recuperables: CAPTCHA mal leído o HTML genérico
+        // (el servidor re-renderiza el formulario cuando el CAPTCHA falla).
+        const esErrorRecuperable =
           errorMessage.includes('PDF válido') ||
-          errorMessage.includes('CAPTCHA');
+          errorMessage.includes('CAPTCHA') ||
+          errorMessage.includes('página de error') ||
+          errorMessage.includes('retornó una página');
 
-        if (!esErrorCaptcha && !esErrorPaginaGenerico) {
-          // error real no recuperable → no reintentar
+        if (!esErrorRecuperable) {
           throw error;
         }
 
@@ -339,47 +326,52 @@ export class AsoPagosService implements Provider {
         `⚠️ Magic bytes inválidos: "${pdfMagic}" (esperado "%PDF")`,
       );
 
-      // Verificar si es HTML (error)
-      const htmlContent = buffer.toString('utf-8', 0, 5000);
-      if (htmlContent.includes('<!DOCTYPE') || htmlContent.includes('<html')) {
-        this.logger.error('❌ La respuesta contiene HTML en lugar de PDF');
+      // Escaneamos el buffer completo: el mensaje de error está en el <body>,
+      // después de varios KB de <link>/<script> en el <head>.
+      const htmlContent = buffer.toString('utf-8');
+      const esHtml =
+        htmlContent.includes('<!DOCTYPE') || htmlContent.includes('<html');
 
-        // 🔍 Buscar texto de error dentro de <p> tags (donde suele estar el mensaje)
-        const pMatch = htmlContent.match(/<p[^>]*>(.*?)<\/p>/is);
-        const errorText = pMatch ? pMatch[1] : '';
+      if (!esHtml) {
+        return false;
+      }
 
-        this.logger.debug(
-          `📄 Texto de error encontrado: ${errorText.substring(0, 200)}`,
+      this.logger.error('❌ La respuesta contiene HTML en lugar de PDF');
+
+      // Extraer texto de todos los <p> del body (ahí está el mensaje real).
+      const pMatches = [...htmlContent.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+      const errorText = pMatches
+        .map((m) => m[1].replace(/<[^>]+>/g, '').trim())
+        .filter(Boolean)
+        .join(' | ');
+
+      this.logger.debug(
+        `📄 Texto de error encontrado: ${errorText.substring(0, 300)}`,
+      );
+
+      // "Persona no existe" → frase textual exacta del servidor (ver <p> del body).
+      const textoLower = errorText.toLowerCase();
+      const personaNoExiste =
+        textoLower.includes('empleado seleccionado no existe') ||
+        textoLower.includes('no se encuentra presente en una planilla');
+
+      if (personaNoExiste) {
+        this.logger.error(
+          '❌ PERSONA NO EXISTE: El empleado no se encuentra en las planillas pagas',
         );
-
-        // Detectar si es error de "persona no existe"
-        const textoLower = (errorText + htmlContent).toLowerCase();
-        if (
-          textoLower.includes('no existe') ||
-          textoLower.includes('no se encuentra') ||
-          textoLower.includes('empleado seleccionado') ||
-          textoLower.includes('planilla paga')
-        ) {
-          this.logger.error(
-            '❌ PERSONA NO EXISTE: El empleado no se encuentra en las planillas pagas',
-          );
-          throw new BadRequestException(
-            'El empleado seleccionado no existe o no se encuentra presente en una planilla paga',
-          );
-        }
-
-        // Otros errores HTML - registrar contenido completo para análisis
-        this.logger.warn(`⚠️ Error HTML genérico recibido`);
-        this.logger.debug(
-          `📄 HTML completo (primeros 1500 chars): ${htmlContent.substring(0, 1500)}`,
-        );
-
         throw new BadRequestException(
-          'El servidor retornó una página de error. Intente nuevamente.',
+          'El empleado seleccionado no existe o no se encuentra presente en una planilla paga',
         );
       }
 
-      return false;
+      // HTML sin mensaje de "no existe" → CAPTCHA incorrecto (reintentable).
+      this.logger.warn(
+        `⚠️ HTML sin mensaje de "no existe" → CAPTCHA probablemente mal leído`,
+      );
+
+      throw new BadRequestException(
+        'CAPTCHA incorrecto: el servidor retornó la página del formulario. Reintentar.',
+      );
     }
 
     this.logger.log('✅ Buffer validado como PDF');
