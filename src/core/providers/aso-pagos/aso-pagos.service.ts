@@ -11,7 +11,6 @@ import { HttpClientService } from 'src/common/http';
 import { Provider } from 'src/common/interfaces/provider.interface';
 import { AsoPagosHttpClientAdapter } from './adapters/aso-pagos-http-client.adapter';
 import { ProviderContribution } from 'src/common/dto/citizen-response.dto';
-import { FileStorageService } from 'src/common/services/file-storage.service';
 import { OcrService } from 'src/common/services/ocr.service';
 import { PdfParserService } from 'src/common/services/pdf-parser.service';
 import { UserNotFoundError } from 'src/common/errors';
@@ -29,7 +28,6 @@ export class AsoPagosService implements Provider {
   constructor(
     private readonly config: TypedConfigService,
     private readonly httpClientService: HttpClientService,
-    private readonly fileStorageService: FileStorageService,
     private readonly ocrService: OcrService,
     private readonly pdfParserService: PdfParserService,
   ) {
@@ -75,18 +73,10 @@ export class AsoPagosService implements Provider {
         // 2. PDF
         const pdfResponse = await this.obtenerCertificadoPDF(dto, captchaText);
 
-        // 3. Guardar
-        const { fileName: pdfFileName } =
-          await this.fileStorageService.saveImage(
-            pdfResponse.pdfBuffer,
-            pdfResponse.fileName,
-          );
-
-        // 4. Parsear
-        const dataPdf = await this.extraerInformacionDelPDF(pdfFileName);
-
-        // 5. limpiar
-        await this.fileStorageService.deleteImage(pdfFileName);
+        // 3. Parsear directamente desde el buffer
+        const dataPdf = await this.extraerInformacionDelPDF(
+          pdfResponse.pdfBuffer,
+        );
 
         this.logger.log(`✅ Flujo exitoso en intento #${intento}`);
 
@@ -291,14 +281,9 @@ export class AsoPagosService implements Provider {
   }
 
   private async extraerInformacionDelPDF(
-    pdfFileName: string,
+    pdfBuffer: Buffer,
   ): Promise<PdfParserResponseDTO> {
-    this.logger.log('📍 Paso 5: Extrayendo información del PDF...');
-    const pdfBuffer = await this.fileStorageService.getFile(pdfFileName);
-
-    if (!this.isPdfValid(pdfBuffer)) {
-      throw new BadRequestException('El archivo no es un PDF válido');
-    }
+    this.logger.log('📍 Paso 4: Extrayendo información del PDF...');
 
     try {
       const textContent =
