@@ -17,7 +17,7 @@ export class OrchestratorController {
 
   constructor(private readonly orchestratorService: OrchestratorService) {}
 
-  @Get(':cedula')
+  @Get()
   @ApiOperation({
     summary: 'Obtener información consolidada de un ciudadano',
     description:
