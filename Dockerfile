@@ -1,40 +1,43 @@
 # ---------- Base ----------
-  FROM node:20-slim AS base
+FROM node:20-slim AS base
 
-  WORKDIR /app
+WORKDIR /app
 
-  RUN npm install -g pnpm
+RUN npm install -g pnpm
 
-  # ---------- Dependencies ----------
-  FROM base AS deps
+# ---------- Dependencies ----------
+FROM base AS deps
 
-  COPY package.json pnpm-lock.yaml ./
-  RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-  # ---------- Build ----------
-  FROM base AS builder
+# ---------- Build ----------
+FROM base AS builder
 
-  COPY --from=deps /app/node_modules ./node_modules
-  COPY . .
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-  RUN pnpm build
+RUN pnpm build
 
-  # ---------- Production ----------
-  FROM node:20-slim AS production
+# ---------- Production ----------
+FROM node:20-slim AS production
 
-  WORKDIR /app
+WORKDIR /app
 
-  RUN npm install -g pnpm
+RUN npm install -g pnpm
 
-  ENV NODE_ENV=production
+ENV NODE_ENV=production
 
-  COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml ./
 
-  RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --frozen-lockfile
 
-  COPY --from=builder /app/dist ./dist
+RUN pnpm exec playwright install --with-deps
 
 
-  EXPOSE 3145
+COPY --from=builder /app/dist ./dist
 
-  CMD ["node", "dist/main.js"]
+
+EXPOSE 3145
+
+CMD ["node", "dist/main.js"]
