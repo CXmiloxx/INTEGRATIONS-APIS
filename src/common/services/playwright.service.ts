@@ -99,7 +99,15 @@ export class PlaywrightService implements OnModuleInit, OnModuleDestroy {
     if (this.browser?.isConnected()) return this.browser;
     if (this.launchPromise) return this.launchPromise;
 
-    const launchOpts: LaunchOptions = { headless: this.headless };
+    const launchOpts: LaunchOptions = {
+      headless: this.headless,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
+    };
     this.launchPromise = chromium
       .launch(launchOpts)
       .then((browser) => {

@@ -1,11 +1,13 @@
+# syntax=docker/dockerfile:1.7
+
 # ---------- Base ----------
-FROM node:20-slim AS base
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy AS base
 
 WORKDIR /app
 
 RUN npm install -g pnpm
 
-# ---------- Dependencies ----------
+# ---------- Dependencies (full, for build) ----------
 FROM base AS deps
 
 COPY package.json pnpm-lock.yaml ./
@@ -19,24 +21,27 @@ COPY . .
 
 RUN pnpm build
 
-# ---------- Production ----------
-FROM node:20-slim AS production
+# ---------- Prod deps only ----------
+FROM base AS prod-deps
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
+# ---------- Production runtime ----------
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy AS production
 
 WORKDIR /app
 
-RUN npm install -g pnpm
+ENV NODE_ENV=production \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 
-ENV NODE_ENV=production
-
-COPY package.json pnpm-lock.yaml ./
-
-RUN pnpm install --prod --frozen-lockfile
-
-RUN pnpm exec playwright install --with-deps
-
-
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY package.json ./
 
+RUN chown -R pwuser:pwuser /app
+
+USER pwuser
 
 EXPOSE 3145
 
