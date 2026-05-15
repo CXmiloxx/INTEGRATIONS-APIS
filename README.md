@@ -48,16 +48,26 @@ Descarga certificados de pago y información de afiliación:
 - **Parseado de PDFs**: Extracción de información estructurada de documentos
 - **Reintentos Inteligentes**: Manejo automático de fallos con reintentos configurables
 
-### 3. ⚙️ Orquestador Escalable
+### 3. 📊 Integración SISBEN
+
+Consulta datos de registro en el Sistema de Selección de Beneficiarios:
+
+- **Información de Grupo SISBEN**: Clasificación socioeconómica y descripción
+- **Datos Personales**: Información demográfica y ubicación
+- **Metadata de Registro**: Ficha, fechas de actualización, encuesta vigente
+- **Contacto Administrativo**: Información de oficina responsable
+
+### 4. ⚙️ Orquestador Escalable
 
 Arquitectura basada en patrón Registry:
 
 - **Ejecución Paralela**: Todos los providers corren simultáneamente
 - **Agnóstico a cantidad**: Agregue nuevos providers sin modificar core
 - **Normalización uniforme**: Interface común para todos los providers
+- **Normalización de Documentos**: Conversión centralizada de tipos de documento específicos por proveedor
 - **Manejo de errores**: Fallos en un provider no afectan a otros
 
-### 4. 🏗️ Arquitectura Modular
+### 5. 🏗️ Arquitectura Modular
 
 Estructura basada en dominios de NestJS:
 
@@ -65,8 +75,9 @@ Estructura basada en dominios de NestJS:
 - **Separación de responsabilidades**: Controllers, Services y DTOs claramente diferenciados
 - **HTTP Client centralizado**: Gestión unificada de clientes HTTP con configuraciones específicas
 - **Adapters HTTP**: Configuración específica por provider (headers, cookies, timeouts)
+- **Document Type Mapper**: Centralización de conversión de tipos de documento entre formatos normalizados y específicos de cada proveedor
 
-### 5. 🔒 Seguridad y Validación
+### 6. 🔒 Seguridad y Validación
 
 - **DTOs con validación**: Todas las entradas se validan con class-validator
 - **Variables de seguridad**: Manejo de parámetros sensibles desde variables de entorno
@@ -74,18 +85,74 @@ Estructura basada en dominios de NestJS:
 - **Tipado estricto**: TypeScript con strict: true
 - **Persistencia de cookies**: Interceptores de Axios para mantener sesiones
 
-### 6. 📚 Documentación API
+### 7. 📚 Documentación API
 
 - **Swagger/OpenAPI**: Documentación interactiva en `/api/v1/docs`
 - **Esquemas detallados**: Ejemplos de request/response para cada endpoint
 - **Manejo de errores**: Documentación de códigos de error (400, 500, etc.)
 
-### 7. ⚡ Optimizaciones de Rendimiento
+### 8. ⚡ Optimizaciones de Rendimiento
 
 - **Tesseract.js Worker Persistente**: OCR pre-cargado en startup (60-80% más rápido)
 - **OCR sin I/O de disco**: Procesamiento directo de buffers en memoria
 - **Fallback inteligente**: Si el worker falla, usa OCR tradicional automáticamente
 - **Tiempo de respuesta**: ~2 segundos para orquestación completa (vs 5 segundos original)
+
+---
+
+## 🔄 Cambios Recientes Implementados
+
+### Normalización Centralizada de Tipos de Documento
+
+**Problema**: Cada proveedor esperaba tipos de documento en formato diferente:
+- ADRES/ASO-PAGOS: Strings normalizados (CC, TI, RC, CE, PA, etc.)
+- SISBEN: Valores numéricos ('1', '2', '3', '4', etc.)
+
+**Solución Implementada**:
+
+1. **DocumentTypeMapper** (`src/common/mappers/document-type.mapper.ts`)
+   - Centraliza conversión entre formatos
+   - Métodos: `toAdresFormat()`, `toSisbenFormat()`, `toServiceFormat()`
+   - Mapeos predefinidos: ADRES_DOCUMENT_TYPES, SISBEN_DOCUMENT_TYPES
+
+2. **Orquestador Centralizado**
+   - El `orchestrator.service.ts` realiza conversión ÚNICA antes de llamar providers
+   - Previene doble conversión que causaba errores
+   - Flujo: normalizado ("CC") → formato específico → proveedor
+
+3. **Interfaces Provider Unificadas**
+   - Todos los providers reciben `tipoDoc?: string | number` 
+   - Ya convertido al formato específico por el orquestador
+   - Sin lógica de conversión en servicios individuales
+
+### Integración Completa de SISBEN
+
+**Datos de SISBEN Ahora Incluidos**:
+
+```typescript
+// sisbenData incluido en respuesta final
+sisbenData: {
+  grupoSisben: string;           // Ej: "B5"
+  grupoDescripcion: string;      // Ej: "Pobreza moderada"
+  ficha: string;                 // Número de ficha
+  fechaConsulta: string;         // Fecha de consulta
+  encuestaVigente: string;       // Vigencia de encuesta
+  ultimaActualizacionCiudadano: string;
+  ultimaActualizacionRegistrosAdministrativos: string;
+  oficina: {
+    nombreAdministrador: string;
+    direccion: string;
+    telefono: string;
+    correoElectronico: string;
+  }
+}
+```
+
+**DTOs Nuevos**:
+
+- `SisbenDataDTO`: Información completa de SISBEN
+- `SisbenOficinaDTO`: Datos de contacto administrativo
+- Agregado a `CitizenDataDTO` y `ProviderContribution`
 
 ---
 
@@ -113,8 +180,10 @@ src/
 │   ├── interfaces/
 │   │   ├── provider.interface.ts         # Interface común para providers
 │   │   └── http-client-adapter.interface.ts
+│   ├── mappers/
+│   │   └── document-type.mapper.ts       # Conversión centralizada de tipos de documento
 │   ├── dto/
-│   │   └── citizen-info.dto.ts           # DTO unificado de información ciudadano
+│   │   └── citizen-response.dto.ts       # DTO unificado de información ciudadano con SISBEN
 │   └── index.ts
 ├── config/
 │   ├── env.config.ts             # Configuración de variables de entorno
@@ -150,16 +219,18 @@ src/
 │   │   │   │   ├── buscar-aso-pagos.dto.ts
 │   │   │   │   └── aso-pagos-response.dto.ts
 │   │   │   └── index.ts
-│   │   │
-│   │   │
-│   │   │
-│   │   │
-│   │   │
-│   │   │
-│   │   │
-│   │   │
-│   │   │
-│   │   ├──
+│   │   ├── sisben/               # 📊 Provider SISBEN
+│   │   │   ├── sisben.module.ts
+│   │   │   ├── sisben.service.ts
+│   │   │   ├── sisben.controller.ts
+│   │   │   ├── adapters/
+│   │   │   │   └── sisben-http-client.adapter.ts
+│   │   │   ├── dto/
+│   │   │   │   └── buscar-sisben.dto.ts
+│   │   │   ├── interfaces/
+│   │   │   │   └── sisben-consulta-result.interface.ts
+│   │   │   └── index.ts
+│   │   └── index.ts
 │   └── index.ts
 ├── types/
 │   └── afiliado.types.ts         # Tipos y enums compartidos
@@ -260,39 +331,68 @@ GET /api/v1/citizen/:cedula
 
 ```json
 {
-  "adres": {
-    "informacionBasica": {
+  "meta": {
+    "timestamp": "2026-05-15T18:39:30.645Z"
+  },
+  "data": {
+    "persona": {
       "tipoIdentificacion": "CC",
-      "numeroIdentificacion": "1088282985",
-      "nombres": "CRISTIAN DAVID",
-      "apellidos": "MEJIA GOMEZ",
+      "numeroIdentificacion": "1032249209",
+      "nombres": "JUAN CAMILO",
+      "apellidos": "GUAPACHA LARGO",
       "fechaNacimiento": "**/**/**",
-      "departamento": "RISARALDA",
-      "municipio": "PEREIRA"
-    },
-    "datosAfiliacion": [
-      {
-        "estado": "ACTIVO",
-        "entidad": "SALUD TOTAL ENTIDAD PROMOTORA DE SALUD",
-        "regimen": "CONTRIBUTIVO",
-        "fechaAfiliacionEfectiva": "01/12/2017",
-        "fechaFinalizacionAfiliacion": "31/12/2999",
-        "tipoAfiliado": "COTIZANTE"
+      "ubicacion": {
+        "departamento": "RISARALDA",
+        "municipio": "QUINCHIA"
       }
-    ]
+    },
+    "afiliaciones": [
+      {
+        "fuente": "ADRES",
+        "estado": "ACTIVO",
+        "entidad": "ASMET SALUD EPS S.A.S. -CM",
+        "regimen": "CONTRIBUTIVO",
+        "fechaInicio": "12/11/2014",
+        "fechaFin": "31/12/2999",
+        "tipo": "COTIZANTE"
+      }
+    ],
+    "aportante": {
+      "fuente": "ASOPAGOS",
+      "nit": "901837715",
+      "empresa": "FINOVA",
+      "periodos": {
+        "pension": "2026-01",
+        "salud": "2026-02"
+      }
+    },
+    "sisbenData": {
+      "grupoSisben": "B5",
+      "grupoDescripcion": "Pobreza moderada",
+      "ficha": "66594016512000000590",
+      "fechaConsulta": "15/05/2026",
+      "encuestaVigente": "25/09/2019",
+      "ultimaActualizacionCiudadano": "31/08/2025",
+      "ultimaActualizacionRegistrosAdministrativos": "28/02/2026",
+      "oficina": {
+        "nombreAdministrador": "SANDRA MILENA PEREZ VELEZ",
+        "direccion": "Carrera 6 No 5 - 13",
+        "telefono": "3563015 Extensión 120",
+        "correoElectronico": "sisben@quinchia-risaralda.gov.co"
+      }
+    }
   },
-  "aso-pagos": {
-    "tipoIdentificacion": "CC",
-    "numeroIdentificacion": "1088282985",
-    "nombres": "CRISTIAN DAVID",
-    "apellidos": "MEJIA GOMEZ",
-    "empresa": "FINOVA",
-    "estado": "ACTIVO",
-    "regimen": "ESPECIAL",
-    "fechaAfiliacion": "01/12/2017",
-    "infoAportes": "Certificado descargado exitosamente"
-  },
-  "fechaProcesamiento": "2026-04-14T13:47:53.200Z"
+  "providers": {
+    "ADRES": {
+      "status": "success"
+    },
+    "ASOPAGOS": {
+      "status": "success"
+    },
+    "SISBEN": {
+      "status": "success"
+    }
+  }
 }
 ```
 
@@ -397,30 +497,63 @@ La aplicación utiliza el **patrón Registry** para gestionar providers:
 3. Ejecución paralela usando `Promise.allSettled`
 4. Normalización uniforme de respuestas
 
+### Normalización de Tipos de Documento
+
+**DocumentTypeMapper** es el punto centralizado para conversión de tipos:
+
+```
+Cliente (envía: "CC")
+         ↓
+Orchestrator.executeProvider()
+    ↓ (convierte con mapper)
+DocumentTypeMapper.toServiceFormat("CC", "sisben")
+    ↓ (retorna "3")
+SISBEN.getData(numDoc, "3")
+    ↓
+Retorna con datos
+```
+
+**Mapeos Soportados**:
+- ADRES: CC, TI, RC, CE, PA, SC, PE, PT
+- SISBEN: '1'(RC), '2'(TI), '3'(CC), '4'(CE), '5'(DNI), '6'(PA), '7'(SC), '8'(PEP), '9'(PPT)
+- ASO-PAGOS: Mismo que ADRES
+
+Agregar nuevo mapeo en `document-type.mapper.ts` cuando sea necesario.
+
 ### Agregar Nuevo Provider
 
 Para agregar un nuevo provider (ej: `nuevo-provider`):
 
 1. **Crear módulo**: `src/core/providers/nuevo-provider/`
+
 2. **Implementar interface Provider**:
 
 ```typescript
 export class NuevoProviderService implements Provider {
   readonly name = 'nuevo-provider';
+  readonly responseKey = 'NUEVO_PROVIDER';
   readonly timeout = 30000;
 
-  async getData(numDoc: number): Promise<any> {
-    // Lógica específica
+  async getData(numDoc: number, tipoDoc?: string | number): Promise<any> {
+    // tipoDoc ya viene convertido al formato específico del proveedor
+    // por el orchestrator (mediante DocumentTypeMapper)
+    // Solo úsalo directamente
   }
 
-  normalize(data: any): Partial<CitizenInfoDTO> {
-    // Normalización a formato unificado
+  toContribution(data: unknown): ProviderContribution {
+    // Normalización a formato unificado (persona, afiliaciones, aportante, etc.)
+    return { persona: {...}, afiliaciones: [...] };
   }
 }
 ```
 
-3. **Registrar en orquestador**: `orchestrator.service.ts`
-4. **Eso es todo**: Sin cambios al core
+3. **Si maneja tipos de documento diferentes**:
+   - Agregar mapeo en `DocumentTypeMapper` (si no usa formato ADRES)
+   - El orchestrator convertirá automáticamente
+
+4. **Registrar en orquestador**: `orchestrator.service.ts`
+
+5. **Eso es todo**: Sin cambios al core
 
 ---
 
