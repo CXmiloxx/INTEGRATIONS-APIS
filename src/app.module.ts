@@ -6,6 +6,7 @@ import { appConfig } from './config/env.config';
 import { TypedConfigService } from './config/service/typed-config.service';
 import { HttpModule } from './common/http';
 import { OrchestratorModule } from './core/orchestrator/orchestrator.module';
+import { SisbenModule } from './core/providers/sisben/sisben.module';
 
 @Module({
   imports: [
@@ -22,11 +23,7 @@ import { OrchestratorModule } from './core/orchestrator/orchestrator.module';
         ADRES_API_URL: Joi.string().required(),
         ASO_PAGOS_API_URL: Joi.string().required(),
         ALLOWED_ORIGINS: Joi.string().optional(),
-        RAD_SCRIPT_MANAGER: Joi.string().required(),
-        EVENT_TARGET: Joi.string().required(),
-        VIEW_STATE: Joi.string().required(),
-        VIEW_STATE_GENERATOR: Joi.string().required(),
-        EVENT_VALIDATION: Joi.string().required(),
+        SISBEN_URL: Joi.string().required(),
       }),
       validationOptions: {
         abortEarly: false,
@@ -36,6 +33,7 @@ import { OrchestratorModule } from './core/orchestrator/orchestrator.module';
     HttpModule,
     AdresModule,
     OrchestratorModule,
+    SisbenModule,
   ],
   providers: [TypedConfigService],
   exports: [TypedConfigService],
