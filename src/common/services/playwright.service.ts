@@ -12,6 +12,7 @@ import {
   LaunchOptions,
   Page,
 } from 'playwright';
+import { TypedConfigService } from 'src/config';
 
 export interface RunInPageOptions {
   contextOptions?: BrowserContextOptions;
@@ -28,21 +29,23 @@ export class PlaywrightService implements OnModuleInit, OnModuleDestroy {
   private browser: Browser | null = null;
   private launchPromise: Promise<Browser> | null = null;
 
-  private readonly maxConcurrency = Math.max(
-    1,
-    Number(process.env.PLAYWRIGHT_MAX_CONCURRENCY ?? 5),
-  );
-  private readonly headless =
-    (process.env.PLAYWRIGHT_HEADLESS ?? 'true') !== 'false';
-  private readonly defaultNavTimeoutMs = Number(
-    process.env.PLAYWRIGHT_NAV_TIMEOUT_MS ?? 30_000,
-  );
+  private readonly maxConcurrency: number;
+  private readonly headless: boolean;
+  private readonly defaultNavTimeoutMs: number;
 
   private active = 0;
   private readonly queue: Array<() => void> = [];
 
+  constructor(private readonly config: TypedConfigService) {
+    const resources = config.getResourceConfig();
+    this.maxConcurrency = Math.max(1, resources.playwright.maxConcurrency);
+    this.headless = resources.playwright.headless;
+    this.defaultNavTimeoutMs = resources.playwright.navigationTimeoutMs;
+  }
+
   async onModuleInit() {
-    await this.getBrowser();
+    // Lazy init - no inicia browser en boot. Se lanza bajo demanda en getBrowser()
+    this.logger.log('⏰ Playwright lazy initialized');
   }
 
   async onModuleDestroy() {

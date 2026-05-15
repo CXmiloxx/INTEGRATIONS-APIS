@@ -1,20 +1,32 @@
 export interface AppConfigType {
   port: number;
   nodeEnv: 'development' | 'production' | 'test';
-  urls: {
-    adresApi: string;
-    asoPagosApi: string;
-    urlApi: string;
-  };
+
+  // Server
   cors: {
     allowedOrigins: string[];
   };
-  security: {
-    radScriptManager: string;
-    eventTarget: string;
-    viewState: string;
-    viewStateGenerator: string;
-    eventValidation: string;
+
+  // Services grouped by provider
+  services: {
+    adres: {
+      url: string;
+    };
+    asoPagos: {
+      url: string;
+    };
+    sisben: {
+      url: string;
+    };
+  };
+
+  // Resource limits
+  resources: {
+    playwright: {
+      maxConcurrency: number;
+      headless: boolean;
+      navigationTimeoutMs: number;
+    };
   };
 }
 

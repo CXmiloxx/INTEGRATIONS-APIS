@@ -1,4 +1,3 @@
-import { TipoDocumento } from 'src/types/afiliado.types';
 import { ProviderContribution } from '../dto/citizen-response.dto';
 
 export interface Provider {
@@ -8,7 +7,7 @@ export interface Provider {
   responseKey: string;
   timeout: number;
 
-  getData(numDoc: number, tipoDoc: TipoDocumento): Promise<unknown>;
+  getData(numDoc: number, tipoDoc?: string | number): Promise<unknown>;
 
   /**
    * Convierte el resultado crudo del provider en su contribución a la

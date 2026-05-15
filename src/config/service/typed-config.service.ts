@@ -4,11 +4,10 @@ import { ConfigSchema } from '../types/config.types';
 
 @Injectable()
 export class TypedConfigService extends ConfigService<ConfigSchema> {
-  //Obtiene la configuracion de la aplicacion
   getAppConfig(): ConfigSchema['app'] {
     const config = this.get<ConfigSchema['app']>('app');
     if (!config) {
-      throw new Error('El archivo de configuracion no esta disponible');
+      throw new Error('Configuración no disponible');
     }
     return config;
   }
@@ -21,15 +20,35 @@ export class TypedConfigService extends ConfigService<ConfigSchema> {
     return this.getAppConfig().nodeEnv;
   }
 
-  getUrls() {
-    return this.getAppConfig().urls;
-  }
-
   getAllowedOrigins(): string[] {
     return this.getAppConfig().cors.allowedOrigins;
   }
 
-  getSecurityConfig() {
-    return this.getAppConfig().security;
+  // ADRES service
+  getAdresConfig() {
+    return this.getAppConfig().services.adres;
+  }
+
+  getUrls() {
+    return {
+      adresApi: this.getAppConfig().services.adres.url,
+      asoPagosApi: this.getAppConfig().services.asoPagos.url,
+      urlApi: '',
+    };
+  }
+
+  // AsoPagos service
+  getAsoPagosConfig() {
+    return this.getAppConfig().services.asoPagos;
+  }
+
+  // AsoPagos service
+  getSisbenConfig() {
+    return this.getAppConfig().services.sisben;
+  }
+
+  // Resources
+  getResourceConfig() {
+    return this.getAppConfig().resources;
   }
 }

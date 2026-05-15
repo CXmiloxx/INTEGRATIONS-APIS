@@ -13,18 +13,31 @@ services:
     env_file:
       - .env
 
-    restart: unless-stopped
+    environment:
+      NODE_ENV: production
 
+    restart: unless-stopped
     init: true
     shm_size: '1gb'
+
+    # Resource limits (adjust según capacidad del servidor)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
 
     networks:
       - integrations_apis_network
 
-    environment:
-      NODE_ENV: production
-
-    command: node dist/main.js
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
 
     healthcheck:
       test:

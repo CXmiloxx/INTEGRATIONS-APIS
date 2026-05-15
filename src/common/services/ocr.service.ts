@@ -1,11 +1,14 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import Tesseract from 'tesseract.js';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class OcrService implements OnModuleInit {
   private readonly logger = new Logger(OcrService.name);
   private worker: Tesseract.Worker | null = null;
   private isWorkerReady = false;
+  private readonly ocrCache = new Map<string, string>(); // SHA256(buffer) → OCR text
+  private readonly maxCacheSize = 500;
 
   /**
    * Inicializa el worker de Tesseract al cargar el módulo
@@ -55,18 +58,39 @@ export class OcrService implements OnModuleInit {
   }
 
   /**
-   * Extrae texto de un buffer de imagen (ya optimizado con worker)
+   * Extrae texto de un buffer de imagen con caché (OCR CAPTCHA dedup)
    */
   async extraerTextoDelBuffer(imageBuffer: Buffer): Promise<string> {
-    this.logger.log(`🔍 Iniciando OCR en buffer (${imageBuffer.length} bytes)`);
+    // Hash del buffer como key de caché
+    const bufferHash = crypto
+      .createHash('sha256')
+      .update(imageBuffer)
+      .digest('hex');
+
+    // Intentar caché primero
+    const cached = this.ocrCache.get(bufferHash);
+    if (cached) {
+      this.logger.log(
+        `✅ OCR CACHÉ hit: ${bufferHash.substring(0, 8)}... → "${cached}"`,
+      );
+      return cached;
+    }
+
+    this.logger.log(
+      `🔍 Iniciando OCR en buffer (${imageBuffer.length} bytes) - MISS`,
+    );
 
     try {
-      // Usar worker si está disponible, sino fallback a recognize
+      let result: string;
       if (this.isWorkerReady && this.worker) {
-        return await this.extraerTextoConWorkerBuffer(imageBuffer);
+        result = await this.extraerTextoConWorkerBuffer(imageBuffer);
       } else {
-        return await this.extraerTextoSinWorkerBuffer(imageBuffer);
+        result = await this.extraerTextoSinWorkerBuffer(imageBuffer);
       }
+
+      // Guardar en caché
+      this.setOcrCache(bufferHash, result);
+      return result;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -189,6 +213,9 @@ export class OcrService implements OnModuleInit {
    * Limpia los recursos del worker al destruir el servicio
    */
   async onModuleDestroy(): Promise<void> {
+    this.ocrCache.clear();
+    this.logger.log(`🗑️ OCR Cache limpiado (${this.ocrCache.size} entries)`);
+
     if (this.worker) {
       try {
         this.logger.log('🧹 Terminando OCR Worker...');
@@ -202,5 +229,17 @@ export class OcrService implements OnModuleInit {
         this.logger.error(`❌ Error terminando OCR Worker: ${errorMessage}`);
       }
     }
+  }
+
+  private setOcrCache(hash: string, text: string): void {
+    if (this.ocrCache.size >= this.maxCacheSize) {
+      // Evict oldest entry (simple FIFO, no LRU)
+      const firstKey = this.ocrCache.keys().next().value;
+      if (firstKey) {
+        this.ocrCache.delete(firstKey);
+        this.logger.debug(`🗑️ OCR Cache evicted (size=${this.ocrCache.size})`);
+      }
+    }
+    this.ocrCache.set(hash, text);
   }
 }
