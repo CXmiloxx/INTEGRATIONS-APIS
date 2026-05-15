@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import Joi from 'joi';
 import { AdresModule } from './core/providers/adres/adres.module';
+import { AsoPagosModule } from './core/providers/aso-pagos/aso-pagos.module';
 import { appConfig } from './config/env.config';
 import { TypedConfigService } from './config/service/typed-config.service';
 import { HttpModule } from './common/http';
@@ -32,6 +33,7 @@ import { SisbenModule } from './core/providers/sisben/sisben.module';
     }),
     HttpModule,
     AdresModule,
+    AsoPagosModule,
     OrchestratorModule,
     SisbenModule,
   ],

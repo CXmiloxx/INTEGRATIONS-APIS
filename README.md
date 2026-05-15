@@ -404,6 +404,137 @@ GET /api/v1/citizen/:cedula
 
 ---
 
+## 🔍 Endpoints Individuales por Provider
+
+### Consulta Individual ADRES
+
+```
+GET /api/v1/adres?tipoDoc=CC&numDoc=1088238352
+```
+
+**Query Parameters:**
+
+- `tipoDoc` (requerido): Tipo de documento normalizado (CC, TI, RC, CE, PA, SC, PE, PT)
+- `numDoc` (requerido): Número de documento (6-15 dígitos)
+
+**Response Exitoso (200):**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "informacionBasica": {
+      "tipoIdentificacion": "CC",
+      "numeroIdentificacion": "1088238352",
+      "nombres": "JUAN CAMILO",
+      "apellidos": "GUAPACHA LARGO",
+      "departamento": "RISARALDA",
+      "municipio": "QUINCHIA"
+    },
+    "datosAfiliacion": [
+      {
+        "estado": "ACTIVO",
+        "entidad": "ASMET SALUD EPS S.A.S. -CM",
+        "regimen": "CONTRIBUTIVO",
+        "fechaAfiliacionEfectiva": "12/11/2014",
+        "fechaFinalizacionAfiliacion": "31/12/2999",
+        "tipoAfiliado": "COTIZANTE"
+      }
+    ]
+  },
+  "metadata": {
+    "timestamp": "2026-05-15T18:39:30.645Z",
+    "provider": "ADRES"
+  }
+}
+```
+
+### Consulta Individual ASO-PAGOS (INTERSSI)
+
+```
+GET /api/v1/asopagos?tipoDoc=CC&numDoc=1088238352
+```
+
+**Query Parameters:**
+
+- `tipoDoc` (requerido): Tipo de documento normalizado (CC, TI, RC, CE, PA, SC, PE, PT)
+- `numDoc` (requerido): Número de documento (6-15 dígitos)
+
+**Response Exitoso (200):**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "informacionAportante": {
+      "cedula": "1088238352",
+      "nombres": "JUAN CAMILO",
+      "apellidos": "GUAPACHA LARGO",
+      "empresa": "FINOVA",
+      "nit": "901837715",
+      "periodoPension": "2026-01",
+      "periodoSalud": "2026-02"
+    }
+  },
+  "metadata": {
+    "timestamp": "2026-05-15T18:39:30.645Z",
+    "provider": "ASOPAGOS"
+  }
+}
+```
+
+### Consulta Individual SISBEN
+
+```
+GET /api/v1/sisben?tipoDoc=CC&numDoc=1088238352
+```
+
+**Query Parameters:**
+
+- `tipoDoc` (requerido): Tipo de documento normalizado (CC, TI, RC, CE, PA, SC, PE, PT)
+- `numDoc` (requerido): Número de documento (6-15 dígitos)
+
+**Response Exitoso (200):**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "encontrado": true,
+    "registroValido": true,
+    "nombres": "JUAN CAMILO",
+    "apellidos": "GUAPACHA LARGO",
+    "tipoDocumento": "Cédula de ciudadanía",
+    "numeroDocumento": "1088238352",
+    "municipio": "Quinchía",
+    "departamento": "Risaralda",
+    "grupoSisben": "B5",
+    "grupoDescripcion": "Pobreza moderada",
+    "ficha": "66594016512000000590",
+    "fechaConsulta": "15/05/2026",
+    "encuestaVigente": "25/09/2019",
+    "oficina": {
+      "nombreAdministrador": "SANDRA MILENA PEREZ VELEZ",
+      "direccion": "Carrera 6 No 5 - 13",
+      "telefono": "3563015 Extensión 120",
+      "correoElectronico": "sisben@quinchia-risaralda.gov.co"
+    }
+  },
+  "metadata": {
+    "timestamp": "2026-05-15T18:39:30.645Z",
+    "provider": "SISBEN"
+  }
+}
+```
+
+**Errores Posibles para Endpoints Individuales:**
+
+- `400`: Parámetros inválidos (tipoDoc no reconocido, numDoc fuera de rango)
+- `404`: Ciudadano no encontrado
+- `500`: Error al consultar el provider
+
+---
+
 ## 🧪 Testing
 
 ```bash
