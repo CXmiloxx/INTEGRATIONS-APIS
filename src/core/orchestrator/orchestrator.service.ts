@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AdresService } from '../providers/adres/adres.service';
 import { AsoPagosService } from '../providers/aso-pagos/aso-pagos.service';
+import { SisbenService } from '../providers/sisben/sisben.service';
 import {
   AfiliacionDTO,
   AportanteDTO,
@@ -9,10 +10,12 @@ import {
   ProviderContribution,
   ProviderResponseStatus,
   ProviderStatusDTO,
+  SisbenDataDTO,
 } from 'src/common/dto/citizen-response.dto';
 import { BuscarAfiliado } from '../providers/adres/dto/buscar-afiliado.dto';
 import { Provider } from 'src/common/interfaces/provider.interface';
 import { UserNotFoundError } from 'src/common/errors';
+import { DocumentTypeMapper } from 'src/common/mappers/document-type.mapper';
 
 interface ProviderExecutionResult {
   name: string;
@@ -32,6 +35,8 @@ export class OrchestratorService {
   constructor(
     private readonly adresService: AdresService,
     private readonly asoPagosService: AsoPagosService,
+    private readonly sisbenService: SisbenService,
+    private readonly docTypeMapper: DocumentTypeMapper,
   ) {
     this.initializeProviders();
   }
@@ -39,6 +44,7 @@ export class OrchestratorService {
   private initializeProviders(): void {
     this.registerProvider(this.adresService);
     this.registerProvider(this.asoPagosService);
+    this.registerProvider(this.sisbenService);
   }
 
   private registerProvider(provider: Provider): void {
@@ -100,9 +106,15 @@ export class OrchestratorService {
   ): Promise<ProviderExecutionResult> {
     const { name, responseKey } = provider;
     try {
+      // Convertir tipo documento al formato específico del servicio
+      const serviceDocType = this.docTypeMapper.toServiceFormat(
+        buscarAfiliadoDto.tipoDoc,
+        name,
+      );
+
       const data = await provider.getData(
         buscarAfiliadoDto.numDoc,
-        buscarAfiliadoDto.tipoDoc,
+        serviceDocType as string | number,
       );
       this.logger.log(`✅ Provider ${name} ejecutado exitosamente`);
       return { name, responseKey, provider, success: true, data };
@@ -169,6 +181,7 @@ export class OrchestratorService {
     let persona: PersonaDTO | null = null;
     const afiliaciones: AfiliacionDTO[] = [];
     let aportante: AportanteDTO | null = null;
+    let sisbenData: SisbenDataDTO | null = null;
 
     for (const result of executionResults) {
       if (!result.success || result.data == null) continue;
@@ -193,9 +206,12 @@ export class OrchestratorService {
       if (contribution.aportante && !aportante) {
         aportante = contribution.aportante;
       }
+      if (contribution.sisbenData && !sisbenData) {
+        sisbenData = contribution.sisbenData;
+      }
     }
 
-    return { persona, afiliaciones, aportante };
+    return { persona, afiliaciones, aportante, sisbenData };
   }
 
   private mergePersona(

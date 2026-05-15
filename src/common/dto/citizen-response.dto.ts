@@ -91,6 +91,46 @@ export class AportanteDTO {
   periodos?: PeriodosAportanteDTO;
 }
 
+export class SisbenOficinaDTO {
+  @ApiProperty({ example: 'SANDRA MILENA PEREZ VELEZ', required: false })
+  nombreAdministrador?: string;
+
+  @ApiProperty({ example: 'Carrera 6 No 5 - 13', required: false })
+  direccion?: string;
+
+  @ApiProperty({ example: '3563015 Extensión 120', required: false })
+  telefono?: string;
+
+  @ApiProperty({ example: 'sisben@quinchia-risaralda.gov.co', required: false })
+  correoElectronico?: string;
+}
+
+export class SisbenDataDTO {
+  @ApiProperty({ example: 'B5', required: false })
+  grupoSisben?: string;
+
+  @ApiProperty({ example: 'Pobreza moderada', required: false })
+  grupoDescripcion?: string;
+
+  @ApiProperty({ example: '66594016512000000590', required: false })
+  ficha?: string;
+
+  @ApiProperty({ example: '15/05/2026', required: false })
+  fechaConsulta?: string;
+
+  @ApiProperty({ example: '25/09/2019', required: false })
+  encuestaVigente?: string;
+
+  @ApiProperty({ example: '31/08/2025', required: false })
+  ultimaActualizacionCiudadano?: string;
+
+  @ApiProperty({ example: '28/02/2026', required: false })
+  ultimaActualizacionRegistrosAdministrativos?: string;
+
+  @ApiProperty({ type: SisbenOficinaDTO, required: false })
+  oficina?: SisbenOficinaDTO;
+}
+
 export class CitizenDataDTO {
   @ApiProperty({ type: PersonaDTO, nullable: true })
   persona: PersonaDTO | null;
@@ -100,6 +140,9 @@ export class CitizenDataDTO {
 
   @ApiProperty({ type: AportanteDTO, nullable: true })
   aportante: AportanteDTO | null;
+
+  @ApiProperty({ type: SisbenDataDTO, nullable: true, required: false })
+  sisbenData?: SisbenDataDTO | null;
 }
 
 export class MetaDTO {
@@ -114,6 +157,7 @@ export interface ProviderContribution {
   persona?: Partial<PersonaDTO>;
   afiliaciones?: AfiliacionDTO[];
   aportante?: AportanteDTO;
+  sisbenData?: SisbenDataDTO;
 }
 
 export class CitizenResponseDTO {

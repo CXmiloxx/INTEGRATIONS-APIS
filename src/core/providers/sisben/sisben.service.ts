@@ -292,12 +292,15 @@ export class SisbenService implements Provider {
   // IMPLEMENTACIÓN DE INTERFAZ PROVIDER
   // ============================================================
 
-  async getData(
-    numDoc: number,
-    tipoDoc: SisbenDocumentType = SisbenDocumentType.CC,
-  ): Promise<unknown> {
+  async getData(numDoc: number, tipoDoc?: string | number): Promise<unknown> {
     try {
-      const result = await this.consultarAfiliado({ tipoDoc, numDoc });
+      // tipoDoc ya viene convertido por el orchestrator
+      const validatedTipoDoc =
+        (tipoDoc as SisbenDocumentType) ?? SisbenDocumentType.CC;
+      const result = await this.consultarAfiliado({
+        tipoDoc: validatedTipoDoc,
+        numDoc,
+      });
       const data = result.data;
       if (!data.encontrado) {
         const msg = data.mensaje ?? '';
@@ -333,6 +336,24 @@ export class SisbenService implements Provider {
           departamento: r.departamento,
           municipio: r.municipio,
         },
+      },
+      sisbenData: {
+        grupoSisben: r.grupoSisben,
+        grupoDescripcion: r.grupoDescripcion,
+        ficha: r.ficha,
+        fechaConsulta: r.fechaConsulta,
+        encuestaVigente: r.encuestaVigente,
+        ultimaActualizacionCiudadano: r.ultimaActualizacionCiudadano,
+        ultimaActualizacionRegistrosAdministrativos:
+          r.ultimaActualizacionRegistrosAdministrativos,
+        oficina: r.oficina
+          ? {
+              nombreAdministrador: r.oficina.nombreAdministrador,
+              direccion: r.oficina.direccion,
+              telefono: r.oficina.telefono,
+              correoElectronico: r.oficina.correoElectronico,
+            }
+          : undefined,
       },
     };
   }

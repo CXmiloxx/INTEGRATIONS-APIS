@@ -425,9 +425,14 @@ export class AdresService implements Provider {
   // IMPLEMENTACIÓN DE INTERFAZ PROVIDER
   // ============================================================
 
-  async getData(numDoc: number, tipoDoc: TipoDocumento = TipoDocumento.CC) {
+  async getData(numDoc: number, tipoDoc?: string | number) {
     try {
-      const result = await this.consultarAfiliado({ tipoDoc, numDoc });
+      // tipoDoc ya viene convertido por el orchestrator
+      const validatedTipoDoc = (tipoDoc as string) ?? 'CC';
+      const result = await this.consultarAfiliado({
+        tipoDoc: validatedTipoDoc as TipoDocumento,
+        numDoc,
+      });
       return result.data;
     } catch (error) {
       this.logger.error(`Error en getData: ${error}`);

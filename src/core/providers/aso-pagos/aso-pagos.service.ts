@@ -5,7 +5,6 @@ import {
   AsoPagosResponseDTO,
   PdfParserResponseDTO,
 } from './dto/aso-pagos-response.dto';
-import { TipoDocumento } from 'src/types/afiliado.types';
 import { TypedConfigService } from 'src/config';
 import { HttpClientService } from 'src/common/http';
 import { Provider } from 'src/common/interfaces/provider.interface';
@@ -14,13 +13,13 @@ import { ProviderContribution } from 'src/common/dto/citizen-response.dto';
 import { OcrService } from 'src/common/services/ocr.service';
 import { PdfParserService } from 'src/common/services/pdf-parser.service';
 import { UserNotFoundError } from 'src/common/errors';
+import { TipoDocumento } from 'src/types/afiliado.types';
 
 @Injectable()
 export class AsoPagosService implements Provider {
   private readonly logger = new Logger(AsoPagosService.name);
   private readonly httpClient: AxiosInstance;
 
-  // Propiedades requeridas por la interfaz Provider
   readonly name: string = 'asoPagos';
   readonly responseKey: string = 'ASOPAGOS';
   readonly timeout: number = 30000;
@@ -31,17 +30,13 @@ export class AsoPagosService implements Provider {
     private readonly ocrService: OcrService,
     private readonly pdfParserService: PdfParserService,
   ) {
-    // Obtener URLs de configuración
-    const urls = this.config.getUrls();
-    const baseUrl = urls.asoPagosApi;
-    if (!baseUrl) {
+    const asoPagosConfig = this.config.getAsoPagosConfig();
+    if (!asoPagosConfig.url) {
       throw new Error('URL de Aso Pagos no configurada');
-    } else {
-      this.logger.log(`✅ VARIABLE RESPONSE: ${baseUrl}`);
     }
-    // ✅ Obtener instancia de HTTP centralizada
+    this.logger.log(`✅ Aso Pagos URL: ${asoPagosConfig.url}`);
     this.httpClient = this.httpClientService.getClient(
-      new AsoPagosHttpClientAdapter(baseUrl),
+      new AsoPagosHttpClientAdapter(asoPagosConfig.url),
     );
   }
 
@@ -381,10 +376,15 @@ export class AsoPagosService implements Provider {
 
   async getData(
     numDoc: number,
-    tipoDoc: TipoDocumento = TipoDocumento.CC,
+    tipoDoc?: string | number,
   ): Promise<AsoPagosResponseDTO> {
     try {
-      const result = await this.consultarAportante({ tipoDoc, numDoc });
+      // tipoDoc ya viene convertido por el orchestrator
+      const validatedTipoDoc = (tipoDoc as string) ?? 'CC';
+      const result = await this.consultarAportante({
+        tipoDoc: validatedTipoDoc as TipoDocumento,
+        numDoc,
+      });
       return result;
     } catch (error) {
       this.logger.error(`Error en getData: ${error}`);
