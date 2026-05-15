@@ -20,15 +20,9 @@ import { ProviderContribution } from 'src/common/dto/citizen-response.dto';
 @Injectable()
 export class AdresService implements Provider {
   private readonly logger = new Logger(AdresService.name);
-  private readonly urls: { adresApi: string; urlApi: string };
-  private readonly radScriptManager: string;
-  private readonly eventTarget: string;
-  private readonly viewState: string;
-  private readonly viewStateGenerator: string;
-  private readonly eventValidation: string;
   private readonly httpClient: AxiosInstance;
+  private readonly httpAdapter: AdresHttpClientAdapter;
 
-  // Propiedades requeridas por la interfaz Provider
   readonly name: string = 'ADRES';
   readonly responseKey: string = 'ADRES';
   readonly timeout: number = 30000;
@@ -37,51 +31,55 @@ export class AdresService implements Provider {
     private readonly config: TypedConfigService,
     private readonly httpClientService: HttpClientService,
   ) {
-    this.urls = this.config.getUrls();
-    this.radScriptManager = this.config.getSecurityConfig().radScriptManager;
-    this.eventTarget = this.config.getSecurityConfig().eventTarget;
-    this.viewState = this.config.getSecurityConfig().viewState;
-    this.viewStateGenerator =
-      this.config.getSecurityConfig().viewStateGenerator;
-    this.eventValidation = this.config.getSecurityConfig().eventValidation;
-
-    // ✅ Obtener instancia de HTTP centralizada
-    this.httpClient = this.httpClientService.getClient(
-      new AdresHttpClientAdapter(this.urls.adresApi),
-    );
+    const adresConfig = this.config.getAdresConfig();
+    this.httpAdapter = new AdresHttpClientAdapter(adresConfig.url);
+    this.httpClient = this.httpClientService.getClient(this.httpAdapter);
   }
 
   async consultarAfiliado(dto: BuscarAfiliado) {
+    const tokens = await this.obtenerTokensFrescos();
+    // obtenerTokensFrescos() ya guardó las cookies via setCookies('adres')
+
     const formData = {
-      RadScriptManager1_TSM: this.radScriptManager,
-      __EVENTTARGET: this.eventTarget,
-      __VIEWSTATE: this.viewState,
-      __VIEWSTATEGENERATOR: this.viewStateGenerator,
-      __EVENTVALIDATION: this.eventValidation,
+      RadScriptManager1_TSM: tokens.radScriptManager,
+      __EVENTTARGET: 'btnConsultar',
+      __EVENTARGUMENT: '',
+      __LASTFOCUS: '',
+      __VIEWSTATE: tokens.viewState,
+      __VIEWSTATEGENERATOR: tokens.viewStateGenerator,
+      __EVENTVALIDATION: tokens.eventValidation,
       tipoDoc: dto.tipoDoc,
       txtNumDoc: dto.numDoc,
+      recaptchaToken: '',
     };
 
     this.logger.log(`Enviando consulta para ${dto.tipoDoc}: ${dto.numDoc}`);
 
-    //Consulta inicial para obtener el token
+    // sessionCookies (obtenidas del GET previo)
+    const sessionCookies = this.httpClientService.getCookies('adres');
+
+    const postHeaders = this.httpAdapter.getHeadersForEndpoint(
+      'ConsultarAfiliadoWeb_2.aspx',
+    );
+    postHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+    if (sessionCookies) {
+      postHeaders['Cookie'] = sessionCookies;
+    }
+
     const postResponse = await this.httpClient.post(
-      `/ConsultarAfiliadoWeb_2.aspx`,
+      '/ConsultarAfiliadoWeb_2.aspx',
       qs.stringify(formData),
       {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: postHeaders,
       },
     );
 
     const htmlResponse = postResponse.data as string;
-
     const token = this.extractToken(htmlResponse);
 
     if (!token) {
       this.logger.error(
-        `No se pudo extraer el tokenId. Respuesta: ${htmlResponse.substring(0, 100)}`,
+        `No se pudo extraer el tokenId. Respuesta: ${htmlResponse.substring(0, 1000)}`,
       );
       throw new BadRequestException(
         'No se pudo extraer el tokenId de la respuesta del servicio ADRES.',
@@ -90,20 +88,18 @@ export class AdresService implements Provider {
 
     this.logger.log('✅ TokenId extraído');
 
-    // ✅ CORRECCIÓN 2: Extraer URL completa desde window.open si existe
     const consultaUrl = this.buildConsultaUrl(htmlResponse, token);
     this.logger.log('🔗 URL de consulta del afiliado');
 
-    // Extraer cookies de sesión
-    const cookies = this.httpClientService.extractCookiesFromHeaders(
+    // ✅ Nombre diferente: postCookies (obtenidas del POST)
+    const postCookies = this.httpClientService.extractCookiesFromHeaders(
       postResponse.headers as Record<string, unknown>,
     );
-    this.httpClientService.setCookies('adres', cookies);
-    this.logger.log('🍪 Cookies de sesión extraidas');
+    this.httpClientService.setCookies('adres', postCookies);
+    this.logger.log('🍪 Cookies de sesión actualizadas');
 
-    // Consulta del afiliado con cookies
-    const result = await this.buscarAfiliado(consultaUrl, cookies);
-
+    // Usar postCookies para la consulta final
+    const result = await this.buscarAfiliado(consultaUrl, postCookies);
     const datosUser = this.parsearDatosUser(result.html);
 
     return {
@@ -151,6 +147,8 @@ export class AdresService implements Provider {
 
   //Construir URL de consulta del afiliado
   private buildConsultaUrl(htmlResponse: string, tokenId: string): string {
+    const baseUrl = this.config.getAdresConfig().url;
+
     // Extraer la ruta exacta desde window.open
     const pathRegex =
       /window\.open\(['"`]([^'"`]+\.aspx\?tokenId=)[^'"`]+['"`]/;
@@ -160,15 +158,12 @@ export class AdresService implements Provider {
       const relativePath = pathMatch[1];
       // Si es relativa, agregar base URL
       if (!relativePath.startsWith('http')) {
-        const baseUrl = this.urls.adresApi;
-        // Remover posible slash final del base y construir la URL completa
         return `${baseUrl}/${relativePath}${encodeURIComponent(tokenId)}`;
       }
       return relativePath + encodeURIComponent(tokenId);
     }
 
     // Fallback: construir la URL de consulta del afiliado
-    const baseUrl = this.urls.adresApi;
     return `${baseUrl}/RespuestaConsulta.aspx?tokenId=${encodeURIComponent(tokenId)}`;
   }
 
@@ -177,13 +172,9 @@ export class AdresService implements Provider {
     this.logger.log('📡 Consultando afiliado en la URL');
 
     try {
-      const headers: Record<string, string> = {
-        Referer: 'https://www.adres.gov.co/consulte-su-eps',
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'es-CO,es;q=0.9,en;q=0.8',
-      };
-
+      const headers = this.httpAdapter.getHeadersForEndpoint(
+        'RespuestaConsulta.aspx',
+      );
       if (cookies) {
         headers['Cookie'] = cookies;
       }
@@ -379,6 +370,55 @@ export class AdresService implements Provider {
         `Error al procesar la respuesta del servicio ADRES: ${errorMessage}`,
       );
     }
+  }
+
+  // Agregar este método privado
+  private async obtenerTokensFrescos(): Promise<{
+    radScriptManager: string;
+    viewState: string;
+    viewStateGenerator: string;
+    eventValidation: string;
+  }> {
+    this.logger.log('🔄 Obteniendo tokens frescos de ADRES...');
+
+    const headers = this.httpAdapter.getHeadersForEndpoint(
+      'ConsultarAfiliadoWeb_2.aspx',
+    );
+    const response = await this.httpClient.get('/ConsultarAfiliadoWeb_2.aspx', {
+      headers,
+    });
+
+    const html = response.data as string;
+    const $ = cheerio.load(html);
+
+    const getInputValue = (name: string): string => {
+      const input = $(`input[name="${name}"]`);
+      return input.attr('value') ?? '';
+    };
+
+    const tokens = {
+      radScriptManager: getInputValue('RadScriptManager1_TSM'),
+      viewState: getInputValue('__VIEWSTATE'),
+      viewStateGenerator: getInputValue('__VIEWSTATEGENERATOR'),
+      eventValidation: getInputValue('__EVENTVALIDATION'),
+    };
+
+    // Guardar cookies de sesión del GET inicial (importante)
+    const cookies = this.httpClientService.extractCookiesFromHeaders(
+      response.headers as Record<string, unknown>,
+    );
+    this.httpClientService.setCookies('adres', cookies);
+
+    if (!tokens.viewState || !tokens.eventValidation) {
+      this.logger.error('❌ No se pudieron extraer los tokens del HTML');
+      this.logger.debug(`HTML preview: ${html.substring(0, 500)}`);
+      throw new BadRequestException(
+        'No se pudieron obtener los tokens de sesión de ADRES',
+      );
+    }
+
+    this.logger.log('✅ Tokens frescos obtenidos correctamente');
+    return tokens;
   }
 
   // ============================================================
